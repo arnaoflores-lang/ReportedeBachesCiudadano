@@ -28,12 +28,12 @@
         }
         .upload-section {
             border: 2px dashed #3498db;
-            padding: 30px;
+            padding: 25px;
             text-align: center;
             border-radius: 8px;
             background: #ecf0f1;
             cursor: pointer;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             transition: background 0.3s;
         }
         .upload-section:hover {
@@ -48,6 +48,23 @@
             border-radius: 8px;
             margin-top: 15px;
             display: none;
+        }
+        .btn-reportar {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 15px;
+        }
+        .btn-reportar:hover {
+            background-color: #c0392b;
         }
         #map {
             height: 300px;
@@ -82,7 +99,7 @@
 
 <div class="container">
     <h1>⚠️ Reporte de Baches</h1>
-    <p style="text-align: center; color: #7f8c8d;">Sube la foto del bache para detectar su ubicación exacta.</p>
+    <p style="text-align: center; color: #7f8c8d;">Toma la foto y envía el reporte usando tu GPS en tiempo real.</p>
 
     <div class="upload-section" onclick="document.getElementById('fileInput').click()">
         <span style="font-size: 40px;">📸</span>
@@ -91,7 +108,9 @@
         <img id="preview" alt="Vista previa del bache">
     </div>
 
-    <div id="statusMessage" class="status">¡Foto procesada con éxito!</div>
+    <button class="btn-reportar" id="btnReportar">📍 Enviar Reporte con mi Ubicación Actual</button>
+
+    <div id="statusMessage" class="status"></div>
     <div id="geoInfo" class="info-geo"></div>
 
     <div id="map"></div>
@@ -101,68 +120,85 @@
 <script>
     const fileInput = document.getElementById('fileInput');
     const preview = document.getElementById('preview');
+    const btnReportar = document.getElementById('btnReportar');
     const statusMessage = document.getElementById('statusMessage');
     const geoInfo = document.getElementById('geoInfo');
     const mapContainer = document.getElementById('map');
     
     let map;
     let marker;
+    let fotoCargada = false;
 
+    // Manejo de la previsualización de la imagen
     fileInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (!file) return;
 
-        // 1. Mostrar vista previa de la foto
         const reader = new FileReader();
         reader.onload = function(event) {
             preview.src = event.target.result;
             preview.style.display = 'block';
+            fotoCargada = true;
         }
         reader.readAsDataURL(file);
+    });
 
-        // 2. Simular o solicitar Geolocalización real
+    // Evento del botón de reporte (captura GPS en tiempo real)
+    btnReportar.addEventListener('click', function() {
+        if (!fotoCargada) {
+            alert("Por favor, toma o selecciona primero una foto del bache.");
+            return;
+        }
+
         statusMessage.style.display = 'block';
-        statusMessage.innerText = "Buscando ubicación exacta...";
+        statusMessage.style.backgroundColor = "#eaf2f8";
+        statusMessage.style.color = "#2980b9";
+        statusMessage.innerText = "Obteniendo ubicación de alta precisión por GPS...";
+
+        // Configuración clave para tiempo real y máxima precisión
+        const geoOptions = {
+            enableHighAccuracy: true, // Fuerza el uso de GPS si está disponible
+            timeout: 10000,           // Espera máxima de 10 segundos
+            maximumAge: 0             // No usar ubicaciones guardadas en caché
+        };
 
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     const lat = position.coords.latitude;
                     const lng = position.coords.longitude;
-                    mostrarEnMapa(lat, lng);
+                    mostrarEnMapa(lat, lng, false);
                 },
-                () => {
-                    // Si el usuario niega el GPS o falla, usamos una simulación (ej. Lima, Perú)
-                    const latSimulada = -12.046374;
-                    const lngSimulada = -77.042793;
-                    mostrarEnMapa(latSimulada, lngSimulada, true);
-                }
+                (error) => {
+                    console.error("Error de Geolocalización:", error);
+                    // Si falla el GPS, se usa la ubicación por defecto (Lima, Perú)
+                    mostrarEnMapa(-12.046374, -77.042793, true);
+                }, 
+                geoOptions
             );
         } else {
-            // Navegador antiguo sin soporte GPS
             mostrarEnMapa(-12.046374, -77.042793, true);
         }
     });
 
     function mostrarEnMapa(lat, lng, esSimulado = false) {
-        statusMessage.innerText = "¡Bache registrado exitosamente!";
-        statusMessage.style.backgroundColor = "#e8f8f5";
-        statusMessage.style.color = "#117a65";
+        statusMessage.style.display = 'block';
+        statusMessage.innerText = esSimulado ? "Reportado (Ubicación por defecto)" : "¡Bache reportado con éxito en tiempo real!";
+        statusMessage.style.backgroundColor = esSimulado ? "#fdf2e9" : "#e8f8f5";
+        statusMessage.style.color = esSimulado ? "#d35400" : "#117a65";
 
         geoInfo.style.display = 'block';
         geoInfo.innerHTML = `
-            <strong>Ubicación detectada:</strong><br>
+            <strong>Ubicación del reporte:</strong><br>
             📍 Latitud: ${lat.toFixed(6)}<br>
             📍 Longitud: ${lng.toFixed(6)} 
-            ${esSimulado ? '<br><span style="color: #e67e22; font-size: 12px;">(Nota: GPS real no disponible, mostrando ubicación de prueba)</span>' : ''}
+            ${esSimulado ? '<br><span style="color: #e67e22; font-size: 12px;">⚠️ No se pudo acceder al GPS en tiempo real.</span>' : ''}
         `;
 
-        // Mostrar contenedor del mapa
         mapContainer.style.display = 'block';
 
-        // Inicializar o actualizar el mapa Leaflet
         if (!map) {
-            map = L.map('map').setView([lat, lng], 16);
+            map = L.map('map').setView([lat, lng], 17);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap'
             }).addTo(map);
@@ -170,11 +206,10 @@
                 .bindPopup('<b>Bache reportado aquí</b>')
                 .openPopup();
         } else {
-            map.setView([lat, lng], 16);
+            map.setView([lat, lng], 17);
             marker.setLatLng([lat, lng]);
         }
         
-        // Ajustar tamaño del mapa por si acaso
         setTimeout(() => { map.invalidateSize(); }, 200);
     }
 </script>
