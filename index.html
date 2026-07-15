@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>I.B.C - Reporte de Baches</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚧</text></svg>">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root { --bg-color: #0d161c; --accent-color: #17a29e; --text-color: #ffffff; }
+        body { font-family: 'Bahnschrift Condensed', 'Arial Narrow', sans-serif; margin: 0; background-color: var(--bg-color); color: var(--text-color); padding: 20px; transition: background 0.3s; }
+        
+        /* Encabezado */
+        .logo-box { background: var(--accent-color); padding: 5px 20px; display: inline-block; font-weight: bold; font-size: 2.5rem; color: #000; margin-bottom: 10px; box-shadow: 0 0 15px rgba(23, 162, 158, 0.5); border-radius: 4px; }
+        .hero-section { margin-bottom: 30px; }
+        
+        /* Sección de iconos con animación */
+        .features-grid { display: flex; justify-content: space-around; margin: 25px 0; color: var(--accent-color); font-size: 1.2rem; }
+        .feature-item { text-align: center; border-bottom: 2px solid transparent; transition: 0.3s; padding-bottom: 5px; }
+        .feature-item:hover { border-bottom: 2px solid var(--accent-color); transform: scale(1.05); }
+
+        /* Interfaz principal */
+        .main-app-card { background: #15222b; padding: 30px; border-radius: 25px; text-align: center; max-width: 600px; margin: 0 auto; border: 1px solid #2c3e50; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .upload-section { border: 2px dashed var(--accent-color); padding: 30px; border-radius: 20px; cursor: pointer; color: var(--accent-color); transition: all 0.3s; }
+        .upload-section:hover { background: rgba(23, 162, 158, 0.1); }
+        #preview { max-width: 100%; border-radius: 12px; margin-top: 20px; display: none; }
+        .btn-reportar { width: 100%; padding: 15px; background-color: var(--accent-color); color: #000; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 1.3rem; text-transform: uppercase; transition: 0.3s; box-shadow: 0 5px 15px rgba(23, 162, 158, 0.3); }
+        .btn-reportar:hover { background-color: #1fcac5; transform: translateY(-2px); }
+        #map { height: 250px; width: 100%; border-radius: 10px; margin-top: 20px; display: none; }
+        
+        /* Historial */
+        .historia-header { background: var(--accent-color); color: black; padding: 10px 35px; display: inline-block; clip-path: polygon(0 0, 92% 0, 100% 50%, 92% 100%, 0 100%); font-weight: bold; font-size: 1.6rem; margin-bottom: 25px; }
+        .btn-delete-all { background: transparent; color: var(--accent-color); border: 1px solid var(--accent-color); padding: 8px 15px; border-radius: 5px; cursor: pointer; float: right; font-family: inherit; font-size: 1rem; transition: 0.3s; }
+        .btn-delete-all:hover { background: var(--accent-color); color: #000; }
+        .history-list { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
+        .history-item { background: #1a252e; padding: 15px; border-radius: 20px; text-align: center; position: relative; border: 1px solid #34495e; transition: 0.4s; animation: fadeIn 0.5s ease; }
+        .history-item:hover { border-color: var(--accent-color); box-shadow: 0 0 20px rgba(23, 162, 158, 0.2); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .history-thumb { width: 100%; height: 160px; object-fit: cover; border-radius: 12px; cursor: pointer; transition: 0.3s; }
+        .history-thumb:hover { filter: brightness(1.2); }
+        .btn-delete-item { position: absolute; top: 15px; right: 15px; background: #e74c3c; color: white; border: none; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; font-size: 14px; }
+        .location-link { color: var(--accent-color); font-size: 1rem; display: block; margin-top: 10px; text-decoration: none; border: 1px solid var(--accent-color); padding: 5px; border-radius: 5px; transition: 0.3s; }
+        .location-link:hover { background: var(--accent-color); color: black; }
+        .history-data { font-size: 0.9rem; color: #bdc3c7; margin-top: 5px; }
+
+        /* Otros */
+        #loadingOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; display: none; justify-content: center; align-items: center; color: var(--accent-color); font-size: 1.5rem; }
+        #galleryModal { display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); align-items: center; justify-content: center; }
+        #modalImg { max-width: 90%; max-height: 90%; border-radius: 10px; border: 3px solid var(--accent-color); }
+    </style>
+</head>
+<body>
+
+<div id="loadingOverlay"><p>Obteniendo ubicación exacta...</p></div>
+
+<div id="galleryModal" onclick="this.style.display='none'">
+    <img id="modalImg" src="">
+</div>
+
+<header class="hero-section">
+    <div class="logo-box">I.B.C</div>
+    <p style="font-size: 1.3rem;">REPORTE SU DESCONFORME SOBRE LA CALIDAD DE LAS AUTOPISTAS Y CARRETERAS DE LA CIUDAD</p>
+    
+    <div class="features-grid">
+        <div class="feature-item">🎯<br>UBICACIÓN EN TIEMPO REAL</div>
+        <div class="feature-item">📋<br>HISTORIAL INTEGRADO</div>
+        <div class="feature-item">🔍<br>CONSULTA CON GOOGLE MAPS</div>
+    </div>
+</header>
+
+<main class="main-app-card">
+    <div class="upload-section" onclick="document.getElementById('fileInput').click()">
+        <p style="font-size: 1.5rem;">📷 TOME UNA FOTO</p>
+        <div style="text-align: left; margin-top: 10px;">
+            <p>LUGAR: <span id="txtLugar">Pendiente...</span></p>
+            <p>FECHA: <span id="txtFecha"></span></p>
+            <p>HORA: <span id="txtHora"></span></p>
+        </div>
+        <img id="preview">
+    </div>
+    <input type="file" id="fileInput" accept="image/*" style="display:none">
+    <button class="btn-reportar" id="btnReportar">ENVIAR REPORTE</button>
+    <div id="map"></div>
+</main>
+
+<section style="margin-top: 40px; padding-bottom: 50px;">
+    <div class="historia-header">HISTORIA</div>
+    <button class="btn-delete-all" onclick="borrarTodo()">ELIMINAR HISTORIAL X</button>
+    <ul class="history-list" id="historyList"></ul>
+</section>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    const fileInput = document.getElementById('fileInput'), preview = document.getElementById('preview'), btnReportar = document.getElementById('btnReportar'), mapContainer = document.getElementById('map'), loadingOverlay = document.getElementById('loadingOverlay'), historyList = document.getElementById('historyList'), galleryModal = document.getElementById('galleryModal'), modalImg = document.getElementById('modalImg');
+    let map, marker, fotoBase64 = "";
+
+    fileInput.onchange = (e) => {
+        const reader = new FileReader();
+        reader.onload = (event) => { 
+            preview.src = event.target.result; 
+            preview.style.display = 'block'; 
+            fotoBase64 = event.target.result; 
+            const ahora = new Date();
+            document.getElementById('txtFecha').innerText = ahora.toLocaleDateString();
+            document.getElementById('txtHora').innerText = ahora.toLocaleTimeString();
+        }
+        reader.readAsDataURL(e.target.files[0]);
+    };
+
+    btnReportar.onclick = () => {
+        if (!fotoBase64) return alert("Sube una foto primero");
+        loadingOverlay.style.display = 'flex';
+        
+        // FORZAMOS LA MÁXIMA PRECISIÓN POSIBLE
+        const geoOptions = { 
+            enableHighAccuracy: true, // Prioridad al GPS físico
+            timeout: 15000,           // 15 segundos de espera máxima para obtener el fix
+            maximumAge: 0             // PROHIBIDO usar datos antiguos (fuerza lectura nueva)
+        };
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => { 
+                document.getElementById('txtLugar').innerText = pos.coords.latitude.toFixed(6) + ", " + pos.coords.longitude.toFixed(6);
+                procesar(pos.coords.latitude, pos.coords.longitude); 
+            },
+            (err) => { 
+                console.warn(`Error (${err.code}): ${err.message}`);
+                alert("No se pudo obtener la ubicación exacta. Por favor, asegúrate de que el GPS esté activo y tengas buena señal."); 
+                loadingOverlay.style.display = 'none'; 
+            },
+            geoOptions
+        );
+    };
+
+    function procesar(lat, lng) {
+        loadingOverlay.style.display = 'none';
+        mapContainer.style.display = 'block';
+        if (!map) { map = L.map('map').setView([lat, lng], 19); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); marker = L.marker([lat, lng]).addTo(map); }
+        else { map.setView([lat, lng], 19); marker.setLatLng([lat, lng]); }
+        
+        let regs = JSON.parse(localStorage.getItem('historial_baches') || '[]');
+        regs.unshift({ lat, lng, foto: fotoBase64, fecha: new Date().toLocaleString() });
+        localStorage.setItem('historial_baches', JSON.stringify(regs));
+        renderizar();
+        preview.style.display = 'none'; fotoBase64 = "";
+    }
+
+    function borrarItem(index) {
+        let regs = JSON.parse(localStorage.getItem('historial_baches') || '[]');
+        regs.splice(index, 1);
+        localStorage.setItem('historial_baches', JSON.stringify(regs));
+        renderizar();
+    }
+
+    function borrarTodo() {
+        if(confirm("¿Eliminar todos los reportes?")) {
+            localStorage.removeItem('historial_baches');
+            renderizar();
+        }
+    }
+
+    function renderizar() {
+        historyList.innerHTML = "";
+        JSON.parse(localStorage.getItem('historial_baches') || '[]').forEach((r, index) => {
+            const li = document.createElement('li');
+            li.className = 'history-item';
+            // Corrección de URL de Google Maps para que funcione correctamente
+            const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${r.lat},${r.lng}`;
+            li.innerHTML = `<button class="btn-delete-item" onclick="borrarItem(${index})">X</button>
+                            <img src="${r.foto}" class="history-thumb" onclick="modalImg.src='${r.foto}'; galleryModal.style.display='flex'">
+                            <div class="history-data">📅 ${r.fecha}</div>
+                            <div class="history-data">📍 ${r.lat.toFixed(6)}, ${r.lng.toFixed(6)}</div>
+                            <a href="${mapsUrl}" target="_blank" class="location-link">📍 Ver en Maps</a>`;
+            historyList.appendChild(li);
+        });
+    }
+    renderizar();
+</script>
+</body>
+</html>
